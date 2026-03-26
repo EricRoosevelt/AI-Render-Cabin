@@ -1,0 +1,5 @@
+__pycache__/
+timeline_history.db
+dist/
+build/
+*.spec

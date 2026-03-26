@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>渲染舱 Rendering Pod V4.4</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://unpkg.com/turndown/dist/turndown.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Microsoft YaHei', sans-serif; display: flex; height: 100vh; background-color: #f4f4f9; color: #333; transition: background 0.4s ease; overflow: hidden;}
+
+        #sidebar { width: 230px; padding: 20px 15px; box-sizing: border-box; box-shadow: 2px 0 10px rgba(0,0,0,0.2); z-index: 10; display: flex; flex-direction: column; overflow-y: auto; transition: all 0.4s ease;}
+        #sidebar h2 { margin-top: 0; font-size: 1.2em; border-bottom: 2px solid rgba(127,127,127,0.3); padding-bottom: 12px; text-align: center;}
+
+        .search-box { position: relative; margin-bottom: 15px; }
+        #search-input { width: 100%; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.2); color: inherit; box-sizing: border-box; font-family: inherit; outline: none; font-size: 0.9em; transition: 0.3s;}
+        #search-input:focus { border-color: #3498db; background: rgba(255,255,255,0.8); color: #333;}
+        #search-results { display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; margin-top: 8px; }
+        .search-res-item { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; font-size: 0.8em; cursor: pointer; transition: 0.2s; border-left: 3px solid #3498db;}
+        .search-res-item:hover { background: rgba(52, 152, 219, 0.4); transform: translateX(2px);}
+
+        .control-group { margin-bottom: 15px; background: rgba(127,127,127,0.15); padding: 10px; border-radius: 8px;}
+        .control-group label { display: block; margin-bottom: 6px; font-size: 0.85em; font-weight: bold; color: inherit;}
+        input[type=range], select { width: 100%; cursor: pointer; }
+        select { padding: 4px; border-radius: 4px; border: none; background: rgba(255,255,255,0.8); font-weight: bold; color: #333; font-size: 0.85em;}
+
+        .export-label { text-align: center; font-size: 0.8em; font-weight: bold; margin-top: 10px; margin-bottom: 5px; color: rgba(127,127,127,0.8);}
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; flex: none;}
+        .btn { border: none; padding: 8px 0; border-radius: 6px; font-weight: bold; font-size: 0.75em; cursor: pointer; transition: 0.2s; color: white; text-align: center;}
+
+        #clear-btn { background: #c0392b; width: 100%; padding: 10px; margin-top: 10px; flex: none; min-height: 38px; border: none; border-radius: 6px; font-weight: bold; font-size: 0.9em; cursor: pointer; transition: 0.2s; color: white;}
+        #clear-btn:hover { background: #e74c3c; }
+
+        .export-btn { background: #27ae60; }
+        .export-btn:hover { background: #2ecc71; transform: translateY(-1px); }
+        .export-md { background: #2980b9; }
+        .export-md:hover { background: #3498db; transform: translateY(-1px); }
+        .export-word { background: #8e44ad; }
+        .export-word:hover { background: #9b59b6; transform: translateY(-1px); }
+
+        #image-gallery { margin-top: 20px; display: flex; flex-direction: column-reverse; gap: 15px; }
+        .img-container { position: relative; border-radius: 8px; overflow: hidden; border: 2px solid rgba(127,127,127,0.3); animation: slideUp 0.4s ease; background: black;}
+        .img-container img { width: 100%; display: block; }
+
+        .del-btn { position: absolute; background: rgba(189, 195, 199, 0.9); color: #2c3e50; border: none; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; cursor: pointer; display: flex; justify-content: center; align-items: center; opacity: 0; transition: all 0.3s; z-index: 100; font-weight: bold;}
+        .del-btn:hover { background: #e74c3c; color: white; transform: scale(1.1); }
+
+        .img-container .del-btn { top: 10px; left: 10px; }
+        .img-container:hover .del-btn { opacity: 1; }
+        .message-card .del-btn { bottom: 15px; right: 15px; }
+        .message-card:hover .del-btn { opacity: 1; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        #main-content { flex: 1; padding: 40px; overflow-y: auto; box-sizing: border-box; scroll-behavior: smooth;}
+
+        .message-card {
+            position: relative; padding: 30px 40px 45px 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            margin: 0 auto 30px auto; width: 100%; max-width: 900px; line-height: 1.8; transition: all 0.4s ease;
+            box-sizing: border-box; /* 锁死宽度 */
+            overflow-wrap: break-word; word-wrap: break-word; /* 强制长英文单词换行 */
+        }
+
+        .editable-content { outline: none; padding: 10px; border-radius: 8px; transition: background 0.3s; }
+        .editable-content:focus { background: rgba(127,127,127,0.05); box-shadow: inset 0 0 0 2px #3498db; }
+
+        pre { background: #282c34 !important; color: #abb2bf; padding: 15px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; box-shadow: inset 0 0 10px rgba(0,0,0,0.5);}
+        code { font-family: 'Consolas', monospace; background: rgba(127,127,127,0.15); padding: 2px 5px; border-radius: 4px; font-size: 0.9em;}
+        pre code { background: transparent; padding: 0; border-radius: 0; font-size: 0.95em;}
+        img { max-width: 100%; height: auto; border-radius: 8px; } /* 防止 Markdown 图片撑爆卡片 */
+        table { border-collapse: collapse; width: 100%; overflow-x: auto; display: block; margin: 15px 0;}
+        th, td { border: 1px solid rgba(127,127,127,0.3); padding: 8px 12px; }
+
+        #format-toolbar {
+            position: absolute; display: none; background: #2c3e50; border-radius: 8px; padding: 4px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3); z-index: 9999; gap: 4px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        #format-toolbar button { background: transparent; border: none; color: white; cursor: pointer; padding: 6px 12px; font-size: 16px; border-radius: 4px; transition: 0.2s; }
+        #format-toolbar button:hover { background: #34495e; transform: translateY(-1px); }
+
+        details { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.08); border-radius: 6px; margin: 10px 0; padding: 10px 15px; }
+        summary { cursor: pointer; font-weight: bold; outline: none; color: #2980b9; display: flex; align-items: center; list-style: none;}
+        summary::-webkit-details-marker { display: none; }
+        summary::before { content: '▶'; margin-right: 8px; font-size: 0.8em; color: #7f8c8d;}
+        details[open] summary::before { content: '▼'; }
+        summary * { display: inline !important; font-size: 1.05em !important; margin: 0 !important; font-weight: bold !important; line-height: 1 !important;}
+        details > div, details > p { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(0,0,0,0.08); }
+        hr { border: none; border-top: 2px dashed #bdc3c7; margin: 30px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="format-toolbar">
+        <button onmousedown="event.preventDefault(); formatText('bold')" title="加粗"><b>B</b></button>
+        <button onmousedown="event.preventDefault(); formatText('underline')" title="下划线"><u>U</u></button>
+        <button onmousedown="event.preventDefault(); formatText('hiliteColor')" title="文字高亮">🖍️</button>
+    </div>
+
+    <div id="sidebar">
+        <h2>🛠️ 小说家 Novelist</h2>
+
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="关键词检索 Keyword search...">
+            <div id="search-results"></div>
+        </div>
+
+        <div class="control-group">
+            <label>🔍 缩放 Scaling  <span id="size-val" style="color:#e74c3c;">16px</span></label>
+            <input type="range" id="font-size" min="12" max="40" value="16">
+        </div>
+        <div class="control-group">
+            <select id="font-family">
+                <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                <option value="'KaiTi', serif">楷体</option>
+                <option value="'SimSun', serif">宋体</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>🌙 主题 Theme:</label>
+            <select id="bg-color">
+                <option value="#eef2f3|#ffffff|#2c3e50|#dfe6e9|#2d3436" selected>月落银 Silver</option>
+                <option value="#e9ecef|#ffffff|#333333|#2c3e50|#ffffff">极客白 Geek</option>
+                <option value="#1e1e1e|#2d2d2d|#e0e0e0|#181818|#e0e0e0">酷酷黑 Night</option>
+                <option value="#4a4031|#fdf6e3|#5c4b37|#3a3225|#fdf6e3">羊皮纸 Paper</option>
+            </select>
+        </div>
+
+        <div class="export-label">— 导出 Export —</div>
+        <div class="btn-group">
+            <button class="btn export-btn" id="export-html">HTML</button>
+            <button class="btn export-md" id="export-md">MD</button>
+            <button class="btn export-word" id="export-word">Word</button>
+        </div>
+        <button id="clear-btn">🧨 清空 Clear</button>
+
+        <div id="image-gallery"></div>
+    </div>
+
+    <div id="main-content"></div>
+
+    <script>
+        const mainContent = document.getElementById('main-content');
+        const imageGallery = document.getElementById('image-gallery');
+        const sidebar = document.getElementById('sidebar');
+        const formatToolbar = document.getElementById('format-toolbar');
+        const searchInput = document.getElementById('search-input');
+        const searchResults = document.getElementById('search-results');
+        let maxId = 0;
+
+        // ==========================================
+        // 💻 配置 Markdown 代码高亮支持
+        // ==========================================
+        marked.setOptions({
+            breaks: true,
+            html: true,
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    return hljs.highlight(code, { language: lang }).value;
+                }
+                return hljs.highlightAuto(code).value;
+            }
+        });
+
+        // ==========================================
+        // 🔍 智能全局检索系统
+        // ==========================================
+        searchInput.addEventListener('input', performSearch);
+
+        function performSearch() {
+            const term = searchInput.value.trim().toLowerCase();
+            searchResults.innerHTML = '';
+
+            // 1. 清除旧的高亮
+            document.querySelectorAll('.search-hl').forEach(mark => {
+                const parent = mark.parentNode;
+                parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                parent.normalize();
+            });
+
+            if (!term) return;
+
+            let matchCount = 0;
+            document.querySelectorAll('.message-card').forEach((card, index) => {
+                const contentEl = card.querySelector('.editable-content');
+                if (!contentEl) return;
+
+                const text = contentEl.innerText.toLowerCase();
+                if (text.includes(term)) {
+                    matchCount++;
+                    // 截取摘要片段
+                    const originalText = contentEl.innerText;
+                    const idx = text.indexOf(term);
+                    const snippet = originalText.substring(Math.max(0, idx - 8), Math.min(originalText.length, idx + 15)).replace(/\n/g, ' ');
+
+                    // 添加到左侧菜单
+                    const item = document.createElement('div');
+                    item.className = 'search-res-item';
+                    item.innerHTML = `<span style="color:#e74c3c;font-weight:bold;">#${index+1}</span> <span style="font-size:0.9em; opacity:0.8;">...${snippet}...</span>`;
+                    item.onclick = () => {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        card.style.transition = "box-shadow 0.3s";
+                        card.style.boxShadow = "0 0 0 3px #3498db, 0 4px 20px rgba(0,0,0,0.15)";
+                        setTimeout(() => card.style.boxShadow = "", 2000); // 两秒后取消边框发光
+                    };
+                    searchResults.appendChild(item);
+
+                    // 在文中高亮关键词 (安全替换，不破坏 HTML 标签)
+                    highlightTextNodes(contentEl, term);
+                }
+            });
+
+            if (matchCount === 0) {
+                searchResults.innerHTML = '<div style="font-size:0.8em; color:#e74c3c; padding:5px; text-align:center;">未找到匹配内容</div>';
+            }
+        }
+
+        // 核心高亮遍历器，只处理纯文本节点，确保不会把 <img> 或 <div> 标签改坏
+        function highlightTextNodes(element, term) {
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+            const nodes = [];
+            while(walker.nextNode()) {
+                if(walker.currentNode.nodeValue.toLowerCase().includes(term) && walker.currentNode.parentNode.tagName !== 'MARK') {
+                    nodes.push(walker.currentNode);
+                }
+            }
+
+            nodes.forEach(node => {
+                const val = node.nodeValue;
+                const regex = new RegExp(`(${term})`, 'gi');
+                const fragment = document.createDocumentFragment();
+                let lastIdx = 0;
+
+                val.replace(regex, (match, p1, offset) => {
+                    if(offset > lastIdx) fragment.appendChild(document.createTextNode(val.substring(lastIdx, offset)));
+                    const mark = document.createElement('mark');
+                    mark.className = 'search-hl';
+                    mark.style.cssText = 'background:#f1c40f; color:#2c3e50; border-radius:3px; padding:0 3px; font-weight:bold; box-shadow: 0 1px 3px rgba(0,0,0,0.2);';
+                    mark.textContent = match;
+                    fragment.appendChild(mark);
+                    lastIdx = offset + match.length;
+                });
+
+                if(lastIdx < val.length) fragment.appendChild(document.createTextNode(val.substring(lastIdx)));
+                node.parentNode.replaceChild(fragment, node);
+            });
+        }
+
+        // ==========================================
+        // 🎨 主题引擎
+        // ==========================================
+        function updateAllCardsStyle() {
+            const fontSize = document.getElementById('font-size').value + 'px';
+            const fontFamily = document.getElementById('font-family').value;
+            const colors = document.getElementById('bg-color').value.split('|');
+            document.body.style.backgroundColor = colors[0];
+            sidebar.style.backgroundColor = colors[3];
+            sidebar.style.color = colors[4];
+            document.querySelectorAll('.message-card').forEach(card => {
+                card.style.fontSize = fontSize;
+                card.style.fontFamily = fontFamily;
+                card.style.backgroundColor = colors[1];
+                card.style.color = colors[2];
+            });
+        }
+
+        document.getElementById('font-size').addEventListener('input', e => {
+            document.getElementById('size-val').innerText = e.target.value + 'px';
+            updateAllCardsStyle();
+        });
+        document.getElementById('font-family').addEventListener('change', updateAllCardsStyle);
+        document.getElementById('bg-color').addEventListener('change', updateAllCardsStyle);
+        updateAllCardsStyle(); // 初始冰雪白银加载
+
+        // ==========================================
+        // 🖍️ 划词排版引擎
+        // ==========================================
+        document.addEventListener('mouseup', checkTextSelection);
+        document.addEventListener('keyup', checkTextSelection);
+
+        function checkTextSelection() {
+            const selection = window.getSelection();
+            if (selection.toString().trim().length > 0 && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                let node = selection.anchorNode;
+                let isEditable = false;
+                while(node) {
+                    if(node.nodeType === 1 && node.classList.contains('editable-content')) {
+                        isEditable = true; break;
+                    }
+                    node = node.parentNode;
+                }
+
+                if (isEditable) {
+                    const rect = range.getBoundingClientRect();
+                    formatToolbar.style.display = 'flex';
+                    formatToolbar.style.top = (rect.top + window.scrollY - 45) + 'px';
+                    formatToolbar.style.left = (rect.left + rect.width/2 - formatToolbar.offsetWidth/2) + 'px';
+                    return;
+                }
+            }
+            formatToolbar.style.display = 'none';
+        }
+
+        window.formatText = function(command) {
+            if (command === 'hiliteColor') {
+                document.execCommand('backColor', false, '#ffeaa7');
+                document.execCommand('hiliteColor', false, '#ffeaa7');
+            } else {
+                document.execCommand(command, false, null);
+            }
+        };
+
+        // ==========================================
+        // 💾 数据同步引擎
+        // ==========================================
+        window.saveEdit = function(id, element) {
+            // 保存前，创建一个克隆体，把检索用的 <mark> 高亮标签剥离掉，防止它们被永久写入数据库
+            const clone = element.cloneNode(true);
+            clone.querySelectorAll('.search-hl').forEach(mark => {
+                const parent = mark.parentNode;
+                parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                parent.normalize();
+            });
+
+            fetch('/update_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id, content: clone.innerHTML })
+            });
+        };
+
+        window.deleteItem = function(id, element) {
+            element.parentElement.remove();
+            fetch('/delete_item', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: id })
+            });
+        };
+
+        document.getElementById('clear-btn').addEventListener('click', () => {
+            if(confirm("警告：永久删除所有记录，不可恢复！")) {
+                mainContent.innerHTML = ''; imageGallery.innerHTML = '';
+                fetch('/clear_all', { method: 'POST' }); maxId = 0;
+            }
+        });
+
+        // ==========================================
+        // 🚀 导出引擎 (保持不变)
+        // ==========================================
+        function getRawData() {
+            const cards = document.querySelectorAll('.editable-content');
+            const images = document.querySelectorAll('.img-container img');
+            if(cards.length === 0 && images.length === 0) { alert('当前没有内容哦！'); return null; }
+            return { cards, images };
+        }
+
+        document.getElementById('export-html').addEventListener('click', () => {
+            let data = getRawData(); if(!data) return;
+            let html = "";
+            if(data.images.length > 0) {
+                html += `<h2 style="text-align:center; color:#8e44ad;">🎨 设定图鉴</h2><div style="text-align:center;">`;
+                data.images.forEach(img => html += `<img src="${img.src}" style="max-width:100%; border-radius:12px; margin-bottom:20px;"><br>`);
+                html += `</div><hr>`;
+            }
+            if(data.cards.length > 0) {
+                html += `<h2 style="text-align:center; color:#2c3e50;">📖 正文内容</h2>`;
+                data.cards.forEach(c => html += c.innerHTML + "<hr>");
+            }
+            const tpl = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>body{font-family:'KaiTi',serif;font-size:19px;line-height:1.8;color:#4a3f35;background:#fdf6e3;padding:20px 5%;max-width:800px;margin:auto;} hr{border:none;border-top:2px dashed #ecf0f1;margin:40px 0;}</style></head><body>${html}</body></html>`;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([tpl], {type: "text/html"}));
+            a.download = "我的小说_沉浸阅读版.html"; a.click();
+        });
+
+        document.getElementById('export-md').addEventListener('click', () => {
+            let data = getRawData(); if(!data) return;
+            const turndownService = new TurndownService({ headingStyle: 'atx' });
+            let mdString = "# 🎨 设定图鉴\\n\\n";
+            data.images.forEach(img => mdString += `![角色图](${img.src})\\n\\n`);
+            mdString += "---\\n\\n# 📖 正文内容\\n\\n";
+            data.cards.forEach(c => mdString += turndownService.turndown(c.innerHTML) + "\\n\\n---\\n\\n");
+
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([mdString], {type: "text/markdown"}));
+            a.download = "我的小说_纯净文本.md"; a.click();
+        });
+
+        document.getElementById('export-word').addEventListener('click', () => {
+            let data = getRawData(); if(!data) return;
+            let html = "";
+            data.images.forEach(img => html += `<img src="${img.src}" style="max-width:600px;"><br><br>`);
+            data.cards.forEach(c => html += c.innerHTML + "<br><br><hr><br><br>");
+            const wordHtml = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'></head><body>${html}</body></html>`;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['\\ufeff', wordHtml], {type: 'application/msword'}));
+            a.download = "我的小说_排版草稿.doc"; a.click();
+        });
+
+        // ==========================================
+        // 🔄 增量渲染引擎
+        // ==========================================
+        function renderItem(item) {
+            if (item.id > maxId) maxId = item.id;
+            if (item.type === 'text') {
+                const div = document.createElement('div');
+                div.className = 'message-card';
+                let parsedContent = marked.parse(item.content);
+                if(item.content.includes('<p>') || item.content.includes('<div') || item.content.includes('<span') || item.content.includes('<pre')) {
+                    parsedContent = item.content;
+                }
+
+                div.innerHTML = `<button class="del-btn" onclick="deleteItem(${item.id}, this)" title="永久删除">×</button>
+                                 <div class="editable-content" contenteditable="true" onblur="saveEdit(${item.id}, this)" title="双击修改，划词可高亮">${parsedContent}</div>`;
+                mainContent.appendChild(div);
+            } else if (item.type === 'image') {
+                const div = document.createElement('div');
+                div.className = 'img-container';
+                div.innerHTML = `<button class="del-btn" onclick="deleteItem(${item.id}, this)" title="永久删除">×</button><img src="${item.content}">`;
+                imageGallery.appendChild(div);
+            }
+        }
+
+        function pollDatabase() {
+            fetch('/get_new?after_id=' + maxId)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        data.forEach(renderItem);
+                        updateAllCardsStyle();
+                        if(data.some(d => d.type === 'text')) {
+                            setTimeout(() => mainContent.scrollTop = mainContent.scrollHeight, 100);
+                        }
+                        // 如果有新内容进来，重新执行一遍搜索（如果搜索框里有字的话）
+                        if(searchInput.value.trim() !== '') performSearch();
+                    }
+                }).catch(e => {});
+        }
+        setInterval(pollDatabase, 1000);
+    </script>
+</body>
+</html>
