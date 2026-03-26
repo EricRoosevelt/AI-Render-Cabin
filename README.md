@@ -24,6 +24,6 @@
 为你的浏览器安装 [Tampermonkey (油猴插件)](https://www.tampermonkey.net/)。
 
 ### 步骤三：安装脚本
-👉 **[点击这里一键安装 AI 渲染舱拦截脚本](这里粘贴你刚才复制的那个Raw链接)**
+👉 **[点击这里一键安装 AI 渲染舱拦截脚本](https://raw.githubusercontent.com/EricRoosevelt/AI-Render-Cabin/main/userscript/AI%20Hijacker%20(V4.2).user.js)**
 
 *(点击上方链接后，油猴插件会自动弹出安装提示，点击确认即可。)*
